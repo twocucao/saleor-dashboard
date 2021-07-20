@@ -3,7 +3,10 @@ import useNavigator from "@saleor/hooks/useNavigator";
 import useNotifier from "@saleor/hooks/useNotifier";
 import OrderFulfillPage from "@saleor/orders/components/OrderFulfillPage";
 import { useOrderFulfill } from "@saleor/orders/mutations";
-import { useOrderFulfillData } from "@saleor/orders/queries";
+import {
+  useOrderFulfillData,
+  useOrderFulfillSettingsQuery
+} from "@saleor/orders/queries";
 import { orderUrl } from "@saleor/orders/urls";
 import { mapEdgesToItems } from "@saleor/utils/maps";
 import { useWarehouseList } from "@saleor/warehouses/queries";
@@ -18,6 +21,12 @@ const OrderFulfill: React.FC<OrderFulfillProps> = ({ orderId }) => {
   const navigate = useNavigator();
   const notify = useNotifier();
   const intl = useIntl();
+
+  const {
+    data: settings,
+    loading: settingsLoading
+  } = useOrderFulfillSettingsQuery({});
+
   const { data, loading } = useOrderFulfillData({
     displayLoader: true,
     variables: {
@@ -68,7 +77,12 @@ const OrderFulfill: React.FC<OrderFulfillProps> = ({ orderId }) => {
         }
       />
       <OrderFulfillPage
-        loading={loading || warehousesLoading || fulfillOrderOpts.loading}
+        loading={
+          loading ||
+          warehousesLoading ||
+          settingsLoading ||
+          fulfillOrderOpts.loading
+        }
         errors={fulfillOrderOpts.data?.orderFulfill.errors}
         onBack={() => navigate(orderUrl(orderId))}
         onSubmit={formData =>
@@ -79,7 +93,8 @@ const OrderFulfill: React.FC<OrderFulfillProps> = ({ orderId }) => {
                   orderLineId: line.id,
                   stocks: line.value
                 })),
-                notifyCustomer: formData.sendInfo
+                notifyCustomer:
+                  settings?.shop?.fulfillmentAutoConfirm && formData.sendInfo
               },
               orderId
             }
@@ -88,6 +103,7 @@ const OrderFulfill: React.FC<OrderFulfillProps> = ({ orderId }) => {
         order={data?.order}
         saveButtonBar="default"
         warehouses={mapEdgesToItems(warehouseData?.warehouses)}
+        shopSettings={settings?.shop}
       />
     </>
   );

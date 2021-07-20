@@ -21,6 +21,7 @@ import ResponsiveTable from "@saleor/components/ResponsiveTable";
 import SaveButtonBar from "@saleor/components/SaveButtonBar";
 import Skeleton from "@saleor/components/Skeleton";
 import TableCellAvatar from "@saleor/components/TableCellAvatar";
+import { ShopOrderSettingsFragment } from "@saleor/fragments/types/ShopOrderSettingsFragment";
 import { WarehouseFragment } from "@saleor/fragments/types/WarehouseFragment";
 import useFormset, { FormsetData } from "@saleor/hooks/useFormset";
 import { renderCollection } from "@saleor/misc";
@@ -29,15 +30,15 @@ import {
   OrderFulfillData_order,
   OrderFulfillData_order_lines
 } from "@saleor/orders/types/OrderFulfillData";
+import { isStockError } from "@saleor/orders/utils/data";
 import { makeStyles } from "@saleor/theme";
-import {
-  OrderErrorCode,
-  OrderFulfillStockInput
-} from "@saleor/types/globalTypes";
+import { OrderFulfillStockInput } from "@saleor/types/globalTypes";
 import { update } from "@saleor/utils/lists";
 import classNames from "classnames";
 import React from "react";
 import { FormattedMessage, useIntl } from "react-intl";
+
+import { messages } from "./messages";
 
 const useStyles = makeStyles(
   theme => {
@@ -122,6 +123,7 @@ export interface OrderFulfillPageProps {
   order: OrderFulfillData_order;
   saveButtonBar: ConfirmButtonTransitionState;
   warehouses: WarehouseFragment[];
+  shopSettings?: ShopOrderSettingsFragment;
   onBack: () => void;
   onSubmit: (data: OrderFulfillSubmitData) => void;
 }
@@ -141,6 +143,7 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
     order,
     saveButtonBar,
     warehouses,
+    shopSettings,
     onBack,
     onSubmit
   } = props;
@@ -157,14 +160,14 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
       .map(line => ({
         data: null,
         id: line.id,
-        label: line.variant.attributes
-          .map(attribute =>
+        label: line.variant?.attributes
+          ?.map(attribute =>
             attribute.values
               .map(attributeValue => attributeValue.name)
               .join(" , ")
           )
-          .join(" / "),
-        value: line.variant.stocks.map(stock => ({
+          ?.join(" / "),
+        value: line.variant?.stocks?.map(stock => ({
           quantity: 0,
           warehouse: stock.warehouse.id
         }))
@@ -179,6 +182,10 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
 
   const shouldEnableSave = () => {
     if (!order || loading) {
+      return false;
+    }
+
+    if (!order?.isPaid && !shopSettings?.fulfillmentAllowUnpaid) {
       return false;
     }
 
@@ -206,81 +213,35 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
     return isAtLeastOneFulfilled && areProperlyFulfilled;
   };
 
-  const isStockError = (
-    overfulfill: boolean,
-    formsetStock: { quantity: number },
-    availableQuantity: number,
-    warehouse: WarehouseFragment,
-    line: OrderFulfillData_order_lines,
-    errors: FulfillOrder_orderFulfill_errors[]
-  ) => {
-    if (overfulfill) {
-      return true;
-    }
-
-    const isQuantityLargerThanAvailable =
-      line.variant.trackInventory && formsetStock.quantity > availableQuantity;
-
-    const isError = !!errors?.find(
-      err =>
-        err.warehouse === warehouse.id &&
-        err.orderLines.find((id: string) => id === line.id) &&
-        err.code === OrderErrorCode.INSUFFICIENT_STOCK
-    );
-
-    return isQuantityLargerThanAvailable || isError;
-  };
-
   return (
     <Container className={classes.container}>
       <AppHeader onBack={onBack}>
         {order?.number
-          ? intl.formatMessage(
-              {
-                defaultMessage: "Order #{orderNumber}",
-                description: "page header with order number"
-              },
-              {
-                orderNumber: order.number
-              }
-            )
-          : intl.formatMessage({
-              defaultMessage: "Order",
-              description: "page header"
-            })}
+          ? intl.formatMessage(messages.headerOrderNumber, {
+              orderNumber: order.number
+            })
+          : intl.formatMessage(messages.headerOrder)}
       </AppHeader>
       <PageHeader
-        title={intl.formatMessage(
-          {
-            defaultMessage: "Order no. {orderNumber} - Add Fulfillment",
-            description: "page header"
-          },
-          {
-            orderNumber: order?.number
-          }
-        )}
+        title={intl.formatMessage(messages.headerOrderNumberAddFulfillment, {
+          orderNumber: order?.number
+        })}
       />
       <Form initial={initialFormData} onSubmit={handleSubmit}>
         {({ change, data, submit }) => (
           <>
             <Card>
               <CardTitle
-                title={intl.formatMessage({
-                  defaultMessage: "Items ready to ship",
-                  description: "header"
-                })}
+                title={intl.formatMessage(messages.itemsReadyToShip)}
               />
               <ResponsiveTable className={classes.table}>
                 <TableHead>
                   <TableRow>
                     <TableCell className={classes.colName}>
-                      <FormattedMessage defaultMessage="Product name" />
+                      <FormattedMessage {...messages.productName} />
                     </TableCell>
                     <TableCell className={classes.colSku}>
-                      <FormattedMessage
-                        defaultMessage="SKU"
-                        description="product's sku"
-                      />
+                      <FormattedMessage {...messages.sku} />
                     </TableCell>
                     {warehouses?.map(warehouse => (
                       <TableCell
@@ -294,10 +255,7 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
                       </TableCell>
                     ))}
                     <TableCell className={classes.colQuantityTotal}>
-                      <FormattedMessage
-                        defaultMessage="Quantity to fulfill"
-                        description="quantity of fulfilled products"
-                      />
+                      <FormattedMessage {...messages.quantityToFulfill} />
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -348,20 +306,20 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
                           >
                             {line.productName}
                             <Typography color="textSecondary" variant="caption">
-                              {line.variant.attributes
-                                .map(attribute =>
+                              {line.variant?.attributes
+                                ?.map(attribute =>
                                   attribute.values
                                     .map(attributeValue => attributeValue.name)
                                     .join(", ")
                                 )
-                                .join(" / ")}
+                                ?.join(" / ")}
                             </Typography>
                           </TableCellAvatar>
                           <TableCell className={classes.colSku}>
-                            {line.variant.sku}
+                            {line.variant?.sku}
                           </TableCell>
                           {warehouses?.map(warehouse => {
-                            const warehouseStock = line.variant.stocks.find(
+                            const warehouseStock = line.variant?.stocks?.find(
                               stock => stock.warehouse.id === warehouse.id
                             );
                             const formsetStock = formsetData[
@@ -379,10 +337,7 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
                                     classes.error
                                   )}
                                 >
-                                  <FormattedMessage
-                                    defaultMessage="No Stock"
-                                    description="no variant stock in warehouse"
-                                  />
+                                  <FormattedMessage {...messages.noStock} />
                                 </TableCell>
                               );
                             }
@@ -482,27 +437,31 @@ const OrderFulfillPage: React.FC<OrderFulfillPageProps> = props => {
                   )}
                 </TableBody>
               </ResponsiveTable>
-              <CardActions className={classes.actionBar}>
-                <ControlledCheckbox
-                  checked={data.sendInfo}
-                  label={intl.formatMessage({
-                    defaultMessage: "Send shipment details to customer",
-                    description: "checkbox"
-                  })}
-                  name="sendInfo"
-                  onChange={change}
-                />
-              </CardActions>
+              {shopSettings?.fulfillmentAutoConfirm && (
+                <CardActions className={classes.actionBar}>
+                  <ControlledCheckbox
+                    checked={data.sendInfo}
+                    label={intl.formatMessage(messages.sentShipmentDetails)}
+                    name="sendInfo"
+                    onChange={change}
+                  />
+                </CardActions>
+              )}
             </Card>
             <SaveButtonBar
               disabled={!shouldEnableSave()}
               labels={{
-                save: intl.formatMessage({
-                  defaultMessage: "Fulfill",
-                  description: "fulfill order, button"
-                })
+                save: shopSettings?.fulfillmentAutoConfirm
+                  ? intl.formatMessage(messages.submitFulfillment)
+                  : intl.formatMessage(messages.submitPrepareFulfillment)
               }}
               state={saveButtonBar}
+              tooltips={{
+                save:
+                  !shopSettings?.fulfillmentAllowUnpaid &&
+                  !order?.isPaid &&
+                  intl.formatMessage(messages.cannotFullfill)
+              }}
               onSave={submit}
               onCancel={onBack}
             />

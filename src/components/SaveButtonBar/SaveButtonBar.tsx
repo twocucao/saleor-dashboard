@@ -10,6 +10,7 @@ import ConfirmButton, {
   ConfirmButtonTransitionState
 } from "../ConfirmButton/ConfirmButton";
 import Container from "../Container";
+import ButtonTooltipDecorator from "./ButtonTooltipDecorator";
 
 const useStyles = makeStyles(
   theme => ({
@@ -59,6 +60,11 @@ interface SaveButtonBarProps {
     delete?: string;
     save?: string;
   };
+  tooltips?: {
+    cancel?: string;
+    delete?: string;
+    save?: string;
+  };
   onCancel: () => void;
   onDelete?: () => void;
   onSave(event: any);
@@ -69,6 +75,7 @@ export const SaveButtonBar: React.FC<SaveButtonBarProps> = props => {
     disabled,
     labels,
     state,
+    tooltips,
     onCancel,
     onDelete,
     onSave,
@@ -100,33 +107,40 @@ export const SaveButtonBar: React.FC<SaveButtonBarProps> = props => {
           >
             <CardContent className={classes.content}>
               {!!onDelete && (
-                <Button
-                  variant="contained"
-                  onClick={onDelete}
-                  className={classes.deleteButton}
-                  data-test="button-bar-delete"
-                >
-                  {labels?.delete || intl.formatMessage(buttonMessages.delete)}
-                </Button>
+                <ButtonTooltipDecorator tooltip={tooltips?.delete}>
+                  <Button
+                    variant="contained"
+                    onClick={onDelete}
+                    className={classes.deleteButton}
+                    data-test="button-bar-delete"
+                  >
+                    {labels?.delete ||
+                      intl.formatMessage(buttonMessages.delete)}
+                  </Button>
+                </ButtonTooltipDecorator>
               )}
               <div className={classes.spacer} />
-              <Button
-                className={classes.cancelButton}
-                variant="text"
-                onClick={onCancel}
-                data-test="button-bar-cancel"
-              >
-                {labels?.cancel || intl.formatMessage(buttonMessages.back)}
-              </Button>
-              <ConfirmButton
-                disabled={disabled}
-                onClick={onSave}
-                transitionState={state}
-                data-test="button-bar-confirm"
-                onTransitionToDefault={() => appAction.setDocked(true)}
-              >
-                {labels?.save || intl.formatMessage(buttonMessages.save)}
-              </ConfirmButton>
+              <ButtonTooltipDecorator tooltip={tooltips?.cancel}>
+                <Button
+                  className={classes.cancelButton}
+                  variant="text"
+                  onClick={onCancel}
+                  data-test="button-bar-cancel"
+                >
+                  {labels?.cancel || intl.formatMessage(buttonMessages.back)}
+                </Button>
+              </ButtonTooltipDecorator>
+              <ButtonTooltipDecorator tooltip={tooltips?.save}>
+                <ConfirmButton
+                  disabled={disabled}
+                  onClick={onSave}
+                  transitionState={state}
+                  data-test="button-bar-confirm"
+                  onTransitionToDefault={() => appAction.setDocked(true)}
+                >
+                  {labels?.save || intl.formatMessage(buttonMessages.save)}
+                </ConfirmButton>
+              </ButtonTooltipDecorator>
             </CardContent>
           </Card>
         </Container>
